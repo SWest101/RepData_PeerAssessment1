@@ -8,18 +8,71 @@ output:
 
 ## Loading and preprocessing the data
 
+```{r echo=TRUE}
+setwd("S:/GitRepository/Reproducible Research - Project 1/RepData_PeerAssessment1")
 
+if (!dir.exists("./data/")){
+  dir.create("./data/")
+  unzip("activity.zip", exdir = "./data")
+}
+
+activity <- read.csv("./data/activity.csv", header = TRUE, colClasses = c("numeric","Date","numeric"))
+```
 
 ## What is mean total number of steps taken per day?
 
+```{r echo=TRUE, warning=FALSE}
+library(dplyr)
+library(ggplot2)
+stepsperday.total <- activity %>% group_by(date) %>% summarise(steps=sum(steps))
+stepsperday.mean <- mean(stepsperday.total$steps, na.rm = TRUE)
+stepsperday.median <- median(stepsperday.total$steps, na.rm = TRUE)
+agg.summary <- as.data.frame(rbind(stepsperday.mean, stepsperday.median))
+colnames(agg.summary) <- "agg"
+```
 
+```{r echo = TRUE, warning=FALSE}
+p1 <- ggplot(data = stepsperday.total, aes(x = steps)) +
+  geom_histogram(fill = "white", colour="black")+
+  geom_vline(data = agg.summary, aes(xintercept = agg), colour = "red")
+p1
+```
+
+The **Mean** steps per day is `r format(stepsperday.mean,7)`.  
+The **Median** steps per day is `r format(stepsperday.median,7)`.
 
 ## What is the average daily activity pattern?
 
+```{r echo=TRUE, warning=FALSE}
+library(data.table)
+intdata <- activity %>% group_by(interval) %>% summarise(steps = mean(steps, na.rm=TRUE))
+qplot(x = interval , y = steps, data = intdata, geom = "line", main ="Average steps per interval")
+maxstep <- intdata[intdata$steps == max(intdata$steps), "interval"]
 
+```
+
+The interval with the highest average number of steps is **`r maxstep`**.
 
 ## Imputing missing values
+```{r echo=TRUE, warning=FALSE}
+sumna <- sum(is.na(activity$steps))
+```
+There are a total of `r sumna` missing step values.
 
+Using the average of the intervals to impute the missing values.
+```{r echo=TRUE, warning=FALSE}
+library(gridExtra)
+activity.impute <- activity
+narows <- which(is.na(activity$steps))
+activity.impute[is.na(activity.impute$steps),"steps"] <- intdata[intdata$interval == activity[narows,"interval"],"steps"]
 
+p2<- ggplot(data = activity.impute, aes(x = steps))+
+  geom_histogram(fill = "white", colour="black")
+grid.arrange(p2,p1, ncol=1)
+```
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+```{r echo=TRUE, warning=FALSE}
+
+```
