@@ -22,19 +22,20 @@ activity <- read.csv("./data/activity.csv", header = TRUE, colClasses = c("numer
 ## What is mean total number of steps taken per day?
 
 ```{r echo=TRUE, warning=FALSE}
-library(dplyr)
-library(ggplot2)
+suppressMessages(library(dplyr))
+suppressMessages(library(ggplot2))
 stepsperday.total <- activity %>% group_by(date) %>% summarise(steps=sum(steps))
 stepsperday.mean <- mean(stepsperday.total$steps, na.rm = TRUE)
 stepsperday.median <- median(stepsperday.total$steps, na.rm = TRUE)
 agg.summary <- as.data.frame(rbind(stepsperday.mean, stepsperday.median))
-colnames(agg.summary) <- "agg"
+colnames(agg.summary) <- "Without.imputed.values"
 ```
 
 ```{r echo = TRUE, warning=FALSE}
 p1 <- ggplot(data = stepsperday.total, aes(x = steps)) +
   geom_histogram(fill = "white", colour="black")+
-  geom_vline(data = agg.summary, aes(xintercept = agg), colour = "red")
+  geom_vline(data = agg.summary, aes(xintercept = Without.imputed.values), colour = "red")+
+  ggtitle("Histogram of total steps per day without imputed value")
 p1
 ```
 
@@ -44,7 +45,7 @@ The **Median** steps per day is `r format(stepsperday.median,7)`.
 ## What is the average daily activity pattern?
 
 ```{r echo=TRUE, warning=FALSE}
-library(data.table)
+suppressMessages(library(data.table))
 intdata <- activity %>% group_by(interval) %>% summarise(steps = mean(steps, na.rm=TRUE))
 qplot(x = interval , y = steps, data = intdata, geom = "line", main ="Average steps per interval")
 maxstep <- intdata[intdata$steps == max(intdata$steps), "interval"]
@@ -54,25 +55,61 @@ maxstep <- intdata[intdata$steps == max(intdata$steps), "interval"]
 The interval with the highest average number of steps is **`r maxstep`**.
 
 ## Imputing missing values
+
 ```{r echo=TRUE, warning=FALSE}
 sumna <- sum(is.na(activity$steps))
 ```
-There are a total of `r sumna` missing step values.
+There are a total of **`r sumna`** missing step values.
 
-Using the average of the intervals to impute the missing values.
+In order to populate missing value, I have used the average of each intervals to impute the missing values.
 ```{r echo=TRUE, warning=FALSE}
-library(gridExtra)
+suppressMessages(library(gridExtra))
 activity.impute <- activity
+#Determine which rows contain NA values
 narows <- which(is.na(activity$steps))
-activity.impute[is.na(activity.impute$steps),"steps"] <- intdata[intdata$interval == activity[narows,"interval"],"steps"]
+#Get the previously calculate average steps per interval
+imputevalues <- intdata[intdata$interval == activity[narows,"interval"],"steps"]
+#Assigning NA values a value 
+activity.impute[is.na(activity.impute$steps),"steps"] <- imputevalues[!is.na(imputevalues$steps),]
+#Calculating total number of steps per day with new imputed values
+imputedsteps.total <- activity.impute %>% group_by(date) %>% summarise(steps=sum(steps))
+imputedsteps.mean <- mean(imputedsteps.total$steps, na.rm = TRUE)
+imputedsteps.median <- median(imputedsteps.total$steps, na.rm = TRUE)
 
-p2<- ggplot(data = activity.impute, aes(x = steps))+
-  geom_histogram(fill = "white", colour="black")
+agg.summary <- cbind(agg.summary, rbind(imputedsteps.mean,imputedsteps.median))
+colnames(agg.summary) <- c("Without.imputed.values","With.imputed.values")
+p2<- ggplot(data = imputedsteps.total, aes(x = steps))+
+  geom_histogram(fill = "white", colour="black")+
+  geom_vline(data = agg.summary, aes(xintercept = With.imputed.values), colour = "red")+
+  ggtitle("Histogram of total steps per day with imputed values ")
 grid.arrange(p2,p1, ncol=1)
 ```
 
+From the histograms above, we can see that the values are distributed more less distrbuted over a wider range. There are a higher frequency of   
+values that are centrally distributed.  
+
+From the table below, we can see that there isn't a significant different between the mean and median with and without imputed values.  
+
+|   |Without Imputed values   |With Imputed values   |
+|---|---|---|
+| mean  |`r format(stepsperday.mean,7)` |`r format(imputedsteps.mean,7)`    |
+| median|`r format(stepsperday.median,7)`   |`r format(imputedsteps.median,7)`   |
+
+
 ## Are there differences in activity patterns between weekdays and weekends?
+
+There does appear to be differences in the patterns between weekdays and weekends.  
+From the graph below, it appears that people walk a greater distance on average in the interval 750 - 1000 on a weekday than on a weekend.
+However, people appear to walk more over the course of a day on a weekend.
 
 ```{r echo=TRUE, warning=FALSE}
 
+activity.impute[,"weekday"] <- weekdays(activity.impute$date)
+weekendrows <- which(activity.impute$weekday == "Saturday" |activity.impute$weekday == "Sunday")
+activity.impute[weekendrows, "weekday"] <- "weekend"
+activity.impute[-weekendrows, "weekday"] <- "weekday"
+activity.impute$weekday <- as.factor(activity.impute$weekday)
+
+intdata.weekday <- activity.impute %>% group_by(interval, weekday) %>% summarise(steps = mean(steps, na.rm=TRUE))
+qplot(x = interval , y = steps, data = intdata.weekday, geom = "line", main ="Average steps per interval and weekday", facets = weekday ~.)
 ```
